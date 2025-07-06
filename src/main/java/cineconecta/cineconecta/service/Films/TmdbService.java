@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 // import org.springframework.web.client.RestTemplate; // <--- Importante: Aquí es RestTemplate
 // import org.springframework.web.util.UriComponentsBuilder; // Para construir URLs de forma segura
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -51,30 +52,41 @@ public class TmdbService {
 
     // Este metodo ahora llama a la API C++
     public Optional<TmdbMovieSearchResponse> searchMovies(String query) {
-        Optional<List<MovieSearchResult>> cppResults = cppMovieApiClient.searchMoviesInCpp(query, null, null);
+        if (query == null || query.trim().isEmpty()) {
+            return Optional.empty(); // Protección adicional
+        }
+
+        String genreId = mapGenreToId(query.trim());
+
+        Optional<List<MovieSearchResult>> cppResults;
+
+        // Si es un género válido, busca por genreId, si no, busca por título (query)
+        if (genreId != null) {
+            cppResults = cppMovieApiClient.searchMoviesInCpp(null, genreId, null);
+        } else {
+            cppResults = cppMovieApiClient.searchMoviesInCpp(query, null, null);
+        }
 
         if (cppResults.isPresent()) {
-            // Mapea MovieSearchResult de C++ a TmdbMovieDto para mantener la compatibilidad
-            // con TmdbMovieSearchResponse si es necesario, o refactoriza para usar MovieSearchResult directamente
             List<TmdbMovieDto> tmdbMovieDtos = cppResults.get().stream()
-               .map(msr -> {
-                    TmdbMovieDto dto = new TmdbMovieDto();
-                    dto.setId(msr.getTmdbId());
-                    dto.setTitle(msr.getTitle());
-                    dto.setReleaseDate(msr.getYear() + "-01-01"); // Asume un formato para la fecha
-                    dto.setPosterPath(msr.getImageUrl().replace("https://image.tmdb.org/t/p/w342", "")); // Quita la base para que sea relativa
-                    // Otros campos si los necesitas
-                    return dto;
-                })
-               .collect(Collectors.toList());
+                    .map(msr -> {
+                        TmdbMovieDto dto = new TmdbMovieDto();
+                        dto.setId(msr.getTmdbId());
+                        dto.setTitle(msr.getTitle());
+                        dto.setReleaseDate(msr.getYear() + "-01-01");
+                        dto.setPosterPath(msr.getImageUrl()); // Ya es URL completa desde C++
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
 
             TmdbMovieSearchResponse response = new TmdbMovieSearchResponse();
             response.setResults(tmdbMovieDtos);
             response.setTotalResults(tmdbMovieDtos.size());
-            response.setPage(1); // Simplificado
-            response.setTotalPages(1); // Simplificado
+            response.setPage(1);
+            response.setTotalPages(1);
             return Optional.of(response);
         }
+
         return Optional.empty();
     }
 
@@ -87,14 +99,22 @@ public class TmdbService {
             TmdbMovieDto dto = new TmdbMovieDto();
             dto.setId(msr.getTmdbId());
             dto.setTitle(msr.getTitle());
-            dto.setReleaseDate(msr.getYear() + "-01-01"); // Asume un formato
+            dto.setReleaseDate(msr.getYear() + "-01-01");
             dto.setOverview(msr.getDescription());
-            dto.setPosterPath(msr.getImageUrl().replace("https://image.tmdb.org/t/p/w342", "")); // Quita la base
-            dto.setVoteAverage(msr.getGeneralRating()!= null? msr.getGeneralRating().doubleValue() : 0.0);
-            // Aquí puedes seguir procesando director, escritores, actores si C++ los devuelve
-            // O mantener la lógica actual de TmdbService para obtener créditos si C++ no los devuelve
-            // Para géneros, necesitarías parsear el string "Ciencia Ficción, Acción" de C++ a List<GenreDto>
-            // o refactorizar MovieSearchResult para que los géneros sean una lista de strings.
+            dto.setPosterPath(msr.getImageUrl().replace("https://image.tmdb.org/t/p/w342", ""));
+            dto.setVoteAverage(msr.getGeneralRating() != null ? msr.getGeneralRating().doubleValue() : 0.0);
+            dto.setDirector(msr.getDirector());
+            dto.setWriters(msr.getWriters());
+            dto.setActors(msr.getActors());
+
+            // ✅ Mapea "Drama, Aventura" a List<GenreDto>
+            if (msr.getGenres() != null && !msr.getGenres().isEmpty()) {
+                dto.setGenres(Arrays.stream(msr.getGenres().split(","))
+                        .map(String::trim)
+                        .map(name -> new TmdbMovieDto.GenreDto(name))
+                        .collect(Collectors.toList()));
+            }
+
             return Optional.of(dto);
         }
         return Optional.empty();
@@ -119,11 +139,36 @@ public class TmdbService {
     // para llamar a la API C++ o ser movidos completamente a C++ si se decide.
     // Por ahora, los dejaré como estaban, asumiendo que la prioridad es la búsqueda básica y detalles.
     public Optional<TmdbMovieSearchResponse> discoverMovies(String genreId, Integer year) {
-        Optional<List<MovieSearchResult>> cppResults = cppMovieApiClient.searchMoviesInCpp(null, genreId, year);
-        //... mapeo similar a searchMovies
-        return Optional.empty(); // Placeholder
-    }
+        System.out.println("🟣 Buscando películas por género ID: " + genreId + " y año: " + year);
 
+        Optional<List<MovieSearchResult>> cppResults = cppMovieApiClient.searchMoviesInCpp(null, genreId, year);
+
+        if (cppResults.isPresent()) {
+            System.out.println("✅ Resultados encontrados: " + cppResults.get().size());
+
+            List<TmdbMovieDto> tmdbMovieDtos = cppResults.get().stream()
+                    .map(msr -> {
+                        TmdbMovieDto dto = new TmdbMovieDto();
+                        dto.setId(msr.getTmdbId());
+                        dto.setTitle(msr.getTitle());
+                        dto.setReleaseDate(msr.getYear() + "-01-01");
+                        dto.setPosterPath(msr.getImageUrl()); // Ya es completa
+                        return dto;
+                    })
+                    .toList();
+
+            TmdbMovieSearchResponse response = new TmdbMovieSearchResponse();
+            response.setResults(tmdbMovieDtos);
+            response.setTotalResults(tmdbMovieDtos.size());
+            response.setPage(1);
+            response.setTotalPages(1);
+
+            return Optional.of(response);
+        }
+
+        System.out.println("❌ No se encontraron resultados desde C++.");
+        return Optional.empty();
+    }
     public Optional<TmdbPersonSearchResponse> searchPerson(String personName) {
         // Esta lógica de búsqueda de persona y luego películas por persona
         // es más compleja y podría quedarse en Java o ser un endpoint dedicado en C++
@@ -132,5 +177,29 @@ public class TmdbService {
 
     public Optional<TmdbMovieSearchResponse> getMoviesByPerson(Long personId) {
         return Optional.empty(); // Placeholder
+    }
+    private String mapGenreToId(String genre) {
+        return switch (genre.toLowerCase()) {
+            case "accion", "acción" -> "28";
+            case "aventura" -> "12";
+            case "animación" -> "16";
+            case "comedia" -> "35";
+            case "crimen" -> "80";
+            case "documental" -> "99";
+            case "drama" -> "18";
+            case "familia" -> "10751";
+            case "fantasía" -> "14";
+            case "historia" -> "36";
+            case "terror", "horror" -> "27";
+            case "musical" -> "10402";
+            case "misterio" -> "9648";
+            case "romance" -> "10749";
+            case "ciencia ficción", "sci-fi" -> "878";
+            case "película de tv", "tv movie" -> "10770";
+            case "thriller" -> "53";
+            case "bélico", "guerra" -> "10752";
+            case "western" -> "37";
+            default -> null;
+        };
     }
 }
