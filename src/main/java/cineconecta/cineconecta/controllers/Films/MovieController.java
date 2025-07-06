@@ -1,9 +1,8 @@
-package cineconecta.cineconecta.controllers.Fimls;
+package cineconecta.cineconecta.controllers.Films;
 
 import cineconecta.cineconecta.models.tmdb.TmdbMovieDto;
 import cineconecta.cineconecta.models.tmdb.TmdbMovieSearchResponse;
 import cineconecta.cineconecta.models.tmdb.MovieSearchResult;
-import cineconecta.cineconecta.models.tmdb.TmdbPersonSearchResponse;
 import cineconecta.cineconecta.service.Films.TmdbService;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -79,14 +78,6 @@ public class MovieController {
             }
         } else if (year != null) {
             tmdbResponse = tmdbService.discoverMovies(null, year);
-        } else if (director != null && !director.trim().isEmpty()) {
-            Optional<TmdbPersonSearchResponse> personSearchResponse = tmdbService.searchPerson(director);
-            if (personSearchResponse.isPresent() && !personSearchResponse.get().getResults().isEmpty()) {
-                Long directorId = personSearchResponse.get().getResults().get(0).getId();
-                tmdbResponse = tmdbService.getMoviesByPerson(directorId);
-            } else {
-                return ResponseEntity.status(404).body(Collections.emptyList());
-            }
         } else {
             return ResponseEntity.badRequest().body(Collections.emptyList());
         }

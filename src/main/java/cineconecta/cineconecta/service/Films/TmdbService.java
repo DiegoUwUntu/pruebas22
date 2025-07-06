@@ -2,26 +2,12 @@ package cineconecta.cineconecta.service.Films;
 
 import cineconecta.cineconecta.models.tmdb.TmdbMovieDto;
 import cineconecta.cineconecta.models.tmdb.TmdbMovieSearchResponse;
-import cineconecta.cineconecta.models.tmdb.TmdbCreditsDto;
-import cineconecta.cineconecta.models.tmdb.PersonMovieCreditsResponse;
-import cineconecta.cineconecta.models.tmdb.PersonCrewCreditDto;
-import cineconecta.cineconecta.models.tmdb.TmdbPersonSearchResponse;
 import cineconecta.cineconecta.models.tmdb.MovieSearchResult;
-
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-//C++
-import org.springframework.beans.factory.annotation.Autowired;
-// YA NO SE NECESITARA PORQUE LO HARA CppMovieApiClient
-// import org.springframework.web.client.RestTemplate; // <--- Importante: Aquí es RestTemplate
-// import org.springframework.web.util.UriComponentsBuilder; // Para construir URLs de forma segura
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors; // Necesario para colectar listas
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class TmdbService {
@@ -120,21 +106,6 @@ public class TmdbService {
         return Optional.empty();
     }
 
-    // Este método ya no es necesario si C++ devuelve la URL completa
-    public Optional<String> getFullPosterUrl(String posterPath) {
-        // Si C++ ya devuelve la URL completa, este método podría ser obsoleto
-        // O podrías usarlo para construir URLs de imágenes que no vengan de C++
-        if (posterPath!= null &&!posterPath.isEmpty()) {
-            // Asumiendo que posterPath ya es una URL completa de C++
-            if (posterPath.startsWith("http")) {
-                return Optional.of(posterPath);
-            }
-            // Si por alguna razón todavía recibes rutas relativas, puedes construirlas
-            // return Optional.of("https://image.tmdb.org/t/p/w342" + posterPath);
-        }
-        return Optional.empty();
-    }
-
     // Los métodos discoverMovies, searchPerson, getMoviesByPerson también necesitarán ser refactorizados
     // para llamar a la API C++ o ser movidos completamente a C++ si se decide.
     // Por ahora, los dejaré como estaban, asumiendo que la prioridad es la búsqueda básica y detalles.
@@ -169,15 +140,7 @@ public class TmdbService {
         System.out.println("❌ No se encontraron resultados desde C++.");
         return Optional.empty();
     }
-    public Optional<TmdbPersonSearchResponse> searchPerson(String personName) {
-        // Esta lógica de búsqueda de persona y luego películas por persona
-        // es más compleja y podría quedarse en Java o ser un endpoint dedicado en C++
-        return Optional.empty(); // Placeholder
-    }
 
-    public Optional<TmdbMovieSearchResponse> getMoviesByPerson(Long personId) {
-        return Optional.empty(); // Placeholder
-    }
     private String mapGenreToId(String genre) {
         return switch (genre.toLowerCase()) {
             case "accion", "acción" -> "28";
